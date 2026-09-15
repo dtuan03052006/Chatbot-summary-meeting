@@ -6,3 +6,26 @@ sounddevice
 wavio
 openai-whisper
 pyannote.audio
+# Web API & Server
+fastapi
+uvicorn
+python-multipart
+pydantic
+
+# PDF Processing
+pdfplumber
+pypdf
+
+# RAG & Chunking
+langchain-text-splitters
+sentence-transformers
+qdrant-client
+ollama
+
+# Machine Learning & Utilities
+torch
+numpy
+requests
+python-dotenv
+streamlit
+
