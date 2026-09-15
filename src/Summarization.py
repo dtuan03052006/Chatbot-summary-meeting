@@ -4,11 +4,11 @@ from typing import List, Dict
 
 from torch import chunk
 
-from src.Speaker_Diarization import speaker_diarization
 from Speaker_Diarization import speaker_diarization
 
-OLLAMA_URL       = "http://localhost:11434/api/generate"
-MODEL_NAME       = "gemma3:4b"
+GROQ_API_KEY     = os.getenv("GROQ_API_KEY", "")
+GROQ_URL         = "https://api.groq.com/openai/v1/chat/completions"
+MODEL_NAME       = "llama-3.1-8b-instant"
 TARGET_LANGUAGE  = "Tiếng Việt"
 CHUNK_WORD_LIMIT = 500          # số từ mỗi chunk MAP
 INPUT_JSON       = "formatted_transcript.json"
@@ -59,20 +59,21 @@ def chunk_to_text(chunk: List[Dict]) -> str:
 
 def call_llm(prompt, timeout=600):
     resp = requests.post(
-        OLLAMA_URL,
+        GROQ_URL,
+        headers={
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json",
+        },
         json={
             "model": MODEL_NAME,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": 0.3,
-                "num_predict": 1024,
-            }
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 1024,
         },
-        timeout=timeout
+        timeout=timeout,
     )
     resp.raise_for_status()
-    return resp.json()["response"].strip()
+    return resp.json()["choices"][0]["message"]["content"].strip()
 
 def map_summarize_chunk(chunk_text: str,
                         chunk_idx: int,

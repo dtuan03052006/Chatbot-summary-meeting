@@ -2,9 +2,10 @@ import json, os, time
 from openai import OpenAI
 
 
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "ollama")   # THAY ĐỔI 1/3
+GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
+GROQ_URL        = "https://api.groq.com/openai/v1/chat/completions"
 TARGET_LANGUAGE = "Tiếng Việt"
-MODEL_NAME      = "gemma3:4b"                             # THAY ĐỔI 2/3
+MODEL_NAME      = "llama-3.1-8b-instant"
 BATCH_WORD_LIMIT = 2000
 INPUT_JSON      = "final_transcriptions.json"
 OUTPUT_TXT      = "formatted_transcript.txt"
@@ -90,24 +91,22 @@ def translate_batch_with_llm(
 
     for i in range(1, max_retries + 1):
         try:
-            # Dùng Ollama /api/generate thay vì chat.completions
-            # → hoạt động với cả model "completion-only" (gemma3:4b)
             resp = requests.post(
-                "http://localhost:11434/api/generate",
-                json={
-                    "model":  model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.1,
-                        "num_predict": 4096,
-                    }
+                GROQ_URL,
+                headers={
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Content-Type": "application/json",
                 },
-                timeout=120
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.1,
+                    "max_tokens": 4096,
+                },
+                timeout=120,
             )
             resp.raise_for_status()
-            # Fix lỗi 2: dùng .get() → không bao giờ None → .strip() an toàn
-            return resp.json().get("response", "").strip()
+            return resp.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
             if i < max_retries:
                 wait_time = 2 ** i
@@ -153,14 +152,14 @@ def translate_and_format_transcript(
     output_json: str = OUTPUT_JSON,
     target_language: str = TARGET_LANGUAGE,
     model: str = MODEL_NAME,
-    api_key: str = OPENAI_API_KEY,
+    api_key: str = GROQ_API_KEY,
 ) -> tuple[str, list[dict]]:
     
     segments = load_transcript(input_json)
     batches = split_into_batches(segments,word_limit=BATCH_WORD_LIMIT)
 
     client = OpenAI(
-        base_url="http://localhost:11434/v1",
+        base_url="https://api.groq.com/openai/v1",
         api_key=api_key,
     )
 
