@@ -228,82 +228,138 @@ def export_summary_to_pdf(
     return output_pdf
 
 
-def main():
+def export_transcript_to_pdf(
+    input_json: str,
+    output_pdf: str = "Transcript.pdf",
+    meeting_title: str = "BIÊN BẢN CUỘC HỌP CHIA TỪNG NGƯỜI NÓI",
+) -> str:
     """
-    Entry point: nhận 1 file JSON đầu vào → xuất 1 file PDF đầu ra.
+    Xuất file formatted_transcript.json (danh sách segment) ra PDF.
 
-    Cách dùng:
-      python Generate_pdf.py meeting_summary.json
-      python Generate_pdf.py meeting_summary.json -o BienBan.pdf
-      python Generate_pdf.py data.json -o output.pdf -t "Tiêu đề"
+    Cấu trúc JSON đầu vào (list):
+    [
+      {"speaker": "SPEAKER_00", "start": "00:01:23", "end": "00:01:30",
+       "text_original": "...", "text_translated": "..."},
+      ...
+    ]
+
+    Args:
+        input_json: Đường dẫn tới file JSON transcript (bắt buộc).
+        output_pdf: Đường dẫn file PDF đầu ra.
+        meeting_title: Tiêu đề hiển thị trên PDF.
+
+    Returns:
+        Đường dẫn file PDF đã xuất.
     """
-    parser = argparse.ArgumentParser(
-        description="Chuyển đổi file JSON tóm tắt cuộc họp → file PDF tiếng Việt.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Ví dụ:\n"
-            "  python Generate_pdf.py meeting_summary.json\n"
-            "  python Generate_pdf.py meeting_summary.json -o BienBan.pdf\n"
-            '  python Generate_pdf.py data.json -o out.pdf -t "Cuộc họp 15/09"\n'
-        ),
-    )
-    parser.add_argument(
-        "input_json",
-        help="Đường dẫn tới file JSON đầu vào (bắt buộc).",
-    )
-    parser.add_argument(
-        "-o", "--output",
-        default=None,
-        help="Đường dẫn file PDF đầu ra. Nếu bỏ trống sẽ tự tạo từ tên file JSON (vd: data.json → data.pdf).",
-    )
-    parser.add_argument(
-        "-t", "--title",
-        default="BIÊN BẢN CUỘC HỌP TỔNG HỢP",
-        help="Tiêu đề cuộc họp hiển thị trên PDF.",
-    )
+    if not os.path.exists(input_json):
+        raise FileNotFoundError(f"Không tìm thấy file JSON đầu vào: '{input_json}'")
 
-    args = parser.parse_args()
+    if not input_json.lower().endswith(".json"):
+        raise ValueError(f"File đầu vào phải là file JSON (.json), nhận được: '{input_json}'")
 
-    # ── Xác định tên file PDF đầu ra ──
-    if args.output:
-        output_pdf = args.output
+    print(f" Đọc file transcript JSON: {input_json}")
+    with open(input_json, "r", encoding="utf-8") as f:
+        segments = json.load(f)
+
+    if not isinstance(segments, list):
+        raise ValueError("File JSON transcript phải là một danh sách (list) các segment.")
+
+    # Nhóm segment theo speaker
+    from collections import OrderedDict
+    speaker_segments = OrderedDict()
+    for seg in segments:
+        sp = seg.get("speaker", "UNKNOWN")
+        if sp not in speaker_segments:
+            speaker_segments[sp] = []
+        speaker_segments[sp].append(seg)
+
+    all_speakers = list(speaker_segments.keys())
+
+    # Chuẩn bị font chữ tiếng Việt
+    reg_font, bold_font = get_font_paths()
+    font_name = "VietFont"
+
+    pdf = MeetingPDF(font_name=font_name, orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=18)
+
+    if reg_font:
+        pdf.add_font(font_name, "", reg_font)
+        pdf.add_font(font_name, "B", bold_font if bold_font else reg_font)
     else:
-        # Tự tạo tên PDF từ tên file JSON: meeting_summary.json → meeting_summary.pdf
-        base_name = os.path.splitext(os.path.basename(args.input_json))[0]
-        output_pdf = base_name + ".pdf"
+        pdf.set_fallback_fonts(["Helvetica"])
 
-    # ── Chạy chuyển đổi JSON → PDF ──
-    try:
-        print(f"{'='*50}")
-        print(f" [1/3] File JSON đầu vào : {args.input_json}")
-        print(f" [2/3] File PDF đầu ra   : {output_pdf}")
-        print(f" [3/3] Tiêu đề           : {args.title}")
-        print(f"{'='*50}")
+    pdf.add_page()
 
-        result = export_summary_to_pdf(
-            input_json=args.input_json,
-            output_pdf=output_pdf,
-            meeting_title=args.title,
-        )
+    # 1. TIÊU ĐỀ CHÍNH
+    pdf.set_font(font_name, "B", 16)
+    pdf.set_text_color(24, 76, 120)
+    pdf.cell(0, 10, meeting_title, align="C")
+    pdf.ln(10)
 
-        abs_path = os.path.abspath(result)
-        size_kb = os.path.getsize(abs_path) / 1024
-        print(f"\n  HOÀN THÀNH! File PDF: {abs_path} ({size_kb:.1f} KB)")
+    # Thông tin người tham gia
+    pdf.set_font(font_name, "", 10)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(0, 6, f"Người tham gia: {', '.join(all_speakers)}", align="C")
+    pdf.ln(6)
 
-    except FileNotFoundError as e:
-        print(f"\n  LỖI: {e}", file=sys.stderr)
-        sys.exit(1)
-    except ValueError as e:
-        print(f"\n  LỖI: {e}", file=sys.stderr)
-        sys.exit(1)
-    except json.JSONDecodeError as e:
-        print(f"\n  LỖI: File JSON không hợp lệ - {e}", file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n  LỖI KHÔNG XÁC ĐỊNH: {e}", file=sys.stderr)
-        sys.exit(1)
+    # Đường kẻ ngang phân cách
+    pdf.set_draw_color(24, 76, 120)
+    pdf.set_line_width(0.5)
+    pdf.line(15, pdf.get_y(), 195, pdf.get_y())
+    pdf.ln(6)
+
+    # 2. IN NỘI DUNG TỪNG SPEAKER
+    for sp, segs in speaker_segments.items():
+        # Tên speaker
+        pdf.set_font(font_name, "B", 12)
+        pdf.set_text_color(40, 116, 166)
+        pdf.cell(0, 7, f"── {sp} ({len(segs)} phát biểu) ──")
+        pdf.ln(8)
+
+        for seg in segs:
+            start = seg.get("start", "")
+            end = seg.get("end", "")
+            text_vn = seg.get("text_translated", "")
+            text_orig = seg.get("text_original", seg.get("text", ""))
+
+            # Dòng thời gian
+            pdf.set_font(font_name, "B", 9)
+            pdf.set_text_color(100, 100, 100)
+            pdf.set_x(18)
+            pdf.cell(0, 5, f"[{start} - {end}]")
+            pdf.ln(5)
+
+            # Nội dung đã dịch
+            if text_vn:
+                cleaned = clean_line(text_vn)
+                if cleaned:
+                    pdf.set_font(font_name, "", 10)
+                    pdf.set_text_color(30, 30, 30)
+                    pdf.set_x(22)
+                    pdf.multi_cell(0, 5.5, f"•  {cleaned}")
+                    pdf.ln(1)
+
+            # Nội dung gốc (in nhỏ, xám nhạt)
+            if text_orig:
+                orig_cleaned = clean_line(text_orig)
+                if orig_cleaned:
+                    pdf.set_font(font_name, "", 8)
+                    pdf.set_text_color(150, 150, 150)
+                    pdf.set_x(25)
+                    pdf.multi_cell(0, 4.5, f"(Gốc: {orig_cleaned})")
+                    pdf.ln(1)
+
+        # Đường kẻ giữa các speaker
+        pdf.ln(3)
+        pdf.set_draw_color(200, 200, 200)
+        pdf.set_line_width(0.3)
+        pdf.line(20, pdf.get_y(), 190, pdf.get_y())
+        pdf.ln(4)
+
+    # Xuất file
+    pdf.output(output_pdf)
+    print(f"\n ĐÃ XUẤT FILE PDF TRANSCRIPT THÀNH CÔNG: '{output_pdf}'")
+    return output_pdf
 
 
-if __name__ == "__main__":
-    main()
 

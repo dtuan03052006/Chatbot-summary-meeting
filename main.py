@@ -3,7 +3,7 @@ from Speaker_Diarization import speaker_diarization
 from Transform_speed_to_text import transcribe_audio
 from Translation_and_formating import translate_and_format_transcript
 from Summarization import summarize_meeting
-from Generate_pdf import export_summary_to_pdf
+from Generate_pdf import export_summary_to_pdf, export_transcript_to_pdf
 import os
 import json
 from pydub import AudioSegment
@@ -54,9 +54,9 @@ pdf_summary = export_summary_to_pdf(
     output_pdf="Meeting_Summary.pdf",        # ← file PDF đầu ra
     meeting_title="BIÊN BẢN CUỘC HỌP TỔNG HỢP",
 )
-pdf_transcript = export_summary_to_pdf(
+pdf_transcript = export_transcript_to_pdf(
     input_json="formatted_transcript.json",       # ← file JSON đầu vào
-    output_pdf="Transcript.pdf",        # ← file PDF đầu ra
+    output_pdf="Transcript.pdf",                  # ← file PDF đầu ra
     meeting_title="BIÊN BẢN CUỘC HỌP CHIA TỪNG NGƯỜI NÓI",
 )
 print(f"Xuất PDF thành công: {pdf_summary,pdf_transcript}")
