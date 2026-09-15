@@ -4,6 +4,7 @@ from typing import List, Dict
 
 from torch import chunk
 
+from src.Speaker_Diarization import speaker_diarization
 from Speaker_Diarization import speaker_diarization
 
 OLLAMA_URL       = "http://localhost:11434/api/generate"

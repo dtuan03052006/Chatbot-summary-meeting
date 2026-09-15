@@ -29,7 +29,7 @@ from fpdf import FPDF
 # -------------------------------------------------
 DEFAULT_OUTPUT_PDF = "Meeting.pdf"
 
-FONT_DIR = os.path.dirname(os.path.abspath(__file__))
+FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fronts")
 FONT_REGULAR = os.path.join(FONT_DIR, "BeVietnamPro-Regular.ttf")
 FONT_BOLD    = os.path.join(FONT_DIR, "BeVietnamPro-Bold.ttf")
 
