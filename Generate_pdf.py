@@ -231,17 +231,13 @@ def export_summary_to_pdf(
 def export_transcript_to_pdf(
     input_json: str,
     output_pdf: str = "Transcript.pdf",
-    meeting_title: str = "BIÊN BẢN CUỘC HỌP CHIA TỪNG NGƯỜI NÓI",
+    meeting_title: str = "BIÊN BẢN CUỘC HỌP CHI TIẾT",
 ) -> str:
     """
-    Xuất file formatted_transcript.json (danh sách segment) ra PDF.
+    Xuất file formatted_transcript.json ra PDF theo thứ tự thời gian.
 
-    Cấu trúc JSON đầu vào (list):
-    [
-      {"speaker": "SPEAKER_00", "start": "00:01:23", "end": "00:01:30",
-       "text_original": "...", "text_translated": "..."},
-      ...
-    ]
+    Hiển thị tuần tự từng phát biểu theo đúng trình tự cuộc họp,
+    KHÔNG gom theo speaker.
 
     Args:
         input_json: Đường dẫn tới file JSON transcript (bắt buộc).
@@ -264,16 +260,8 @@ def export_transcript_to_pdf(
     if not isinstance(segments, list):
         raise ValueError("File JSON transcript phải là một danh sách (list) các segment.")
 
-    # Nhóm segment theo speaker
-    from collections import OrderedDict
-    speaker_segments = OrderedDict()
-    for seg in segments:
-        sp = seg.get("speaker", "UNKNOWN")
-        if sp not in speaker_segments:
-            speaker_segments[sp] = []
-        speaker_segments[sp].append(seg)
-
-    all_speakers = list(speaker_segments.keys())
+    # Lấy danh sách speaker (không trùng lặp, giữ thứ tự xuất hiện)
+    all_speakers = list(dict.fromkeys(seg.get("speaker", "UNKNOWN") for seg in segments))
 
     # Chuẩn bị font chữ tiếng Việt
     reg_font, bold_font = get_font_paths()
@@ -308,53 +296,47 @@ def export_transcript_to_pdf(
     pdf.line(15, pdf.get_y(), 195, pdf.get_y())
     pdf.ln(6)
 
-    # 2. IN NỘI DUNG TỪNG SPEAKER
-    for sp, segs in speaker_segments.items():
-        # Tên speaker
-        pdf.set_font(font_name, "B", 12)
-        pdf.set_text_color(40, 116, 166)
-        pdf.cell(0, 7, f"── {sp} ({len(segs)} phát biểu) ──")
-        pdf.ln(8)
+    # 2. IN TỪNG PHÁT BIỂU THEO THỨ TỰ THỜI GIAN
+    prev_speaker = None
+    for seg in segments:
+        speaker = seg.get("speaker", "UNKNOWN")
+        start = seg.get("start", "")
+        end = seg.get("end", "")
+        text_vn = seg.get("text_translated", "")
+        text_orig = seg.get("text_original", seg.get("text", ""))
 
-        for seg in segs:
-            start = seg.get("start", "")
-            end = seg.get("end", "")
-            text_vn = seg.get("text_translated", "")
-            text_orig = seg.get("text_original", seg.get("text", ""))
+        # Khi đổi người nói → in tên speaker nổi bật
+        if speaker != prev_speaker:
+            pdf.ln(3)
+            pdf.set_font(font_name, "B", 11)
+            pdf.set_text_color(40, 116, 166)
+            pdf.cell(0, 6, f"── {speaker} ──")
+            pdf.ln(7)
+            prev_speaker = speaker
 
-            # Dòng thời gian
-            pdf.set_font(font_name, "B", 9)
-            pdf.set_text_color(100, 100, 100)
-            pdf.set_x(18)
-            pdf.cell(0, 5, f"[{start} - {end}]")
-            pdf.ln(5)
+        # Dòng thời gian + nội dung đã dịch
+        if text_vn:
+            cleaned = clean_line(text_vn)
+            if cleaned:
+                pdf.set_font(font_name, "B", 9)
+                pdf.set_text_color(100, 100, 100)
+                pdf.set_x(15)
+                pdf.cell(35, 5, f"[{start} - {end}]")
 
-            # Nội dung đã dịch
-            if text_vn:
-                cleaned = clean_line(text_vn)
-                if cleaned:
-                    pdf.set_font(font_name, "", 10)
-                    pdf.set_text_color(30, 30, 30)
-                    pdf.set_x(22)
-                    pdf.multi_cell(0, 5.5, f"•  {cleaned}")
-                    pdf.ln(1)
+                pdf.set_font(font_name, "", 10)
+                pdf.set_text_color(30, 30, 30)
+                pdf.multi_cell(0, 5.5, cleaned)
+                pdf.ln(1)
 
-            # Nội dung gốc (in nhỏ, xám nhạt)
-            if text_orig:
-                orig_cleaned = clean_line(text_orig)
-                if orig_cleaned:
-                    pdf.set_font(font_name, "", 8)
-                    pdf.set_text_color(150, 150, 150)
-                    pdf.set_x(25)
-                    pdf.multi_cell(0, 4.5, f"(Gốc: {orig_cleaned})")
-                    pdf.ln(1)
-
-        # Đường kẻ giữa các speaker
-        pdf.ln(3)
-        pdf.set_draw_color(200, 200, 200)
-        pdf.set_line_width(0.3)
-        pdf.line(20, pdf.get_y(), 190, pdf.get_y())
-        pdf.ln(4)
+        # Nội dung gốc (in nhỏ, xám nhạt)
+        if text_orig:
+            orig_cleaned = clean_line(text_orig)
+            if orig_cleaned:
+                pdf.set_font(font_name, "", 8)
+                pdf.set_text_color(150, 150, 150)
+                pdf.set_x(50)
+                pdf.multi_cell(0, 4.5, f"(Gốc: {orig_cleaned})")
+                pdf.ln(1)
 
     # Xuất file
     pdf.output(output_pdf)
