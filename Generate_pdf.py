@@ -1,8 +1,13 @@
 """
 Bước 6: Xuất file PDF tóm tắt cuộc họp (PDF Generation)
 ---------------------------------------------------------
-Đầu vào  : meeting_summary.json (output từ Bước 5)
-Đầu ra   : Meeting_Summary.pdf
+Đầu vào  : file JSON (truyền qua command line)
+Đầu ra   : file PDF (truyền qua command line hoặc mặc định Meeting_Summary.pdf)
+
+Cách dùng:
+  python Generate_pdf.py input.json                        # xuất ra Meeting_Summary.pdf
+  python Generate_pdf.py input.json -o output.pdf          # chỉ định file PDF đầu ra
+  python Generate_pdf.py input.json -o out.pdf -t "Tiêu đề cuộc họp"
 
 Tính năng:
   - Hỗ trợ 100% tiếng Việt có dấu qua font BeVietnamPro (Google Fonts).
@@ -14,14 +19,15 @@ Tính năng:
 import json
 import os
 import re
+import sys
+import argparse
 import urllib.request
 from fpdf import FPDF
 
 # -------------------------------------------------
 # Cấu hình mặc định
 # -------------------------------------------------
-INPUT_JSON  = "meeting_summary.json"
-OUTPUT_PDF  = "Meeting_Summary.pdf"
+DEFAULT_OUTPUT_PDF = "Meeting.pdf"
 
 FONT_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_REGULAR = os.path.join(FONT_DIR, "BeVietnamPro-Regular.ttf")
@@ -47,14 +53,14 @@ def get_font_paths() -> tuple[str, str]:
             return reg, bld
 
     # 3. Tải font BeVietnamPro trực tiếp từ Google Fonts CDN
-    print("⏳ Đang tải font tiếng Việt BeVietnamPro từ Google Fonts...")
+    print(" Đang tải font tiếng Việt BeVietnamPro từ Google Fonts...")
     try:
         urllib.request.urlretrieve(URL_REGULAR, FONT_REGULAR)
         urllib.request.urlretrieve(URL_BOLD, FONT_BOLD)
-        print("✅ Tải font thành công!")
+        print(" Tải font thành công!")
         return FONT_REGULAR, FONT_BOLD
     except Exception as e:
-        print(f"⚠️ Không thể tải font qua mạng: {e}")
+        print(f" Không thể tải font qua mạng: {e}")
         return None, None
 
 
@@ -80,7 +86,7 @@ class MeetingPDF(FPDF):
 def clean_line(text: str) -> str:
     """Lọc bỏ ký tự Markdown và các câu tiếng Anh thừa của AI"""
     skip_phrases = [
-        "okay, here's a summary", "okay, here’s a summary",
+        "okay, here's a summary", "okay, here's a summary",
         "would you like me to elaborate", "translation of the bullet points",
         "explanation of the summary", "here is a summary",
         "presented in bullet points", "broken down into"
@@ -94,34 +100,31 @@ def clean_line(text: str) -> str:
     return text.strip()
 
 
-def find_input_json(input_json: str) -> str:
-    """Tìm file JSON ở các vị trí khả dĩ trên máy/Kaggle"""
-    candidates = [
-        input_json,
-        os.path.join(os.getcwd(), input_json),
-        "/kaggle/working/meeting_summary.json",
-        "/kaggle/working/Chatbot-sumarry-meeting/meeting_summary.json",
-        os.path.join(FONT_DIR, input_json),
-    ]
-    for p in candidates:
-        if os.path.exists(p):
-            return p
-    return input_json
-
-
 def export_summary_to_pdf(
-    input_json: str = INPUT_JSON,
-    output_pdf: str = OUTPUT_PDF,
+    input_json: str,
+    output_pdf: str = DEFAULT_OUTPUT_PDF,
     meeting_title: str = "BIÊN BẢN CUỘC HỌP TỔNG HỢP",
 ) -> str:
     """
-    Hàm xuất dữ liệu từ meeting_summary.json ra file PDF chuẩn tiếng Việt
-    """
-    resolved_json = find_input_json(input_json)
-    if not os.path.exists(resolved_json):
-        raise FileNotFoundError(f"Không tìm thấy file '{input_json}'!")
+    Hàm xuất dữ liệu từ file JSON ra file PDF chuẩn tiếng Việt.
 
-    with open(resolved_json, "r", encoding="utf-8") as f:
+    Args:
+        input_json: Đường dẫn tới file JSON đầu vào (bắt buộc).
+        output_pdf: Đường dẫn file PDF đầu ra (mặc định: Meeting_Summary.pdf).
+        meeting_title: Tiêu đề cuộc họp hiển thị trên PDF.
+
+    Returns:
+        Đường dẫn file PDF đã xuất.
+    """
+    # Kiểm tra file JSON đầu vào
+    if not os.path.exists(input_json):
+        raise FileNotFoundError(f"Không tìm thấy file JSON đầu vào: '{input_json}'")
+
+    if not input_json.lower().endswith(".json"):
+        raise ValueError(f"File đầu vào phải là file JSON (.json), nhận được: '{input_json}'")
+
+    print(f" Đọc file JSON: {input_json}")
+    with open(input_json, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     overall_summary = data.get("overall_summary", "")
@@ -225,5 +228,82 @@ def export_summary_to_pdf(
     return output_pdf
 
 
+def main():
+    """
+    Entry point: nhận 1 file JSON đầu vào → xuất 1 file PDF đầu ra.
+
+    Cách dùng:
+      python Generate_pdf.py meeting_summary.json
+      python Generate_pdf.py meeting_summary.json -o BienBan.pdf
+      python Generate_pdf.py data.json -o output.pdf -t "Tiêu đề"
+    """
+    parser = argparse.ArgumentParser(
+        description="Chuyển đổi file JSON tóm tắt cuộc họp → file PDF tiếng Việt.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Ví dụ:\n"
+            "  python Generate_pdf.py meeting_summary.json\n"
+            "  python Generate_pdf.py meeting_summary.json -o BienBan.pdf\n"
+            '  python Generate_pdf.py data.json -o out.pdf -t "Cuộc họp 15/09"\n'
+        ),
+    )
+    parser.add_argument(
+        "input_json",
+        help="Đường dẫn tới file JSON đầu vào (bắt buộc).",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        default=None,
+        help="Đường dẫn file PDF đầu ra. Nếu bỏ trống sẽ tự tạo từ tên file JSON (vd: data.json → data.pdf).",
+    )
+    parser.add_argument(
+        "-t", "--title",
+        default="BIÊN BẢN CUỘC HỌP TỔNG HỢP",
+        help="Tiêu đề cuộc họp hiển thị trên PDF.",
+    )
+
+    args = parser.parse_args()
+
+    # ── Xác định tên file PDF đầu ra ──
+    if args.output:
+        output_pdf = args.output
+    else:
+        # Tự tạo tên PDF từ tên file JSON: meeting_summary.json → meeting_summary.pdf
+        base_name = os.path.splitext(os.path.basename(args.input_json))[0]
+        output_pdf = base_name + ".pdf"
+
+    # ── Chạy chuyển đổi JSON → PDF ──
+    try:
+        print(f"{'='*50}")
+        print(f" [1/3] File JSON đầu vào : {args.input_json}")
+        print(f" [2/3] File PDF đầu ra   : {output_pdf}")
+        print(f" [3/3] Tiêu đề           : {args.title}")
+        print(f"{'='*50}")
+
+        result = export_summary_to_pdf(
+            input_json=args.input_json,
+            output_pdf=output_pdf,
+            meeting_title=args.title,
+        )
+
+        abs_path = os.path.abspath(result)
+        size_kb = os.path.getsize(abs_path) / 1024
+        print(f"\n  HOÀN THÀNH! File PDF: {abs_path} ({size_kb:.1f} KB)")
+
+    except FileNotFoundError as e:
+        print(f"\n  LỖI: {e}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(f"\n  LỖI: {e}", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"\n  LỖI: File JSON không hợp lệ - {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n  LỖI KHÔNG XÁC ĐỊNH: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    export_summary_to_pdf()
+    main()
+
