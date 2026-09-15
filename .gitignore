@@ -21,5 +21,6 @@ __pycache__/
 # PDF outputs & font downloads
 *.pdf
 *.ttf
+!fronts/*.ttf
 meeting_summary.txt
 meeting_summary.md
