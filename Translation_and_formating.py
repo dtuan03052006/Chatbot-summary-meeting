@@ -2,9 +2,10 @@ import json, os, time
 from openai import OpenAI
 
 
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "ollama")
+GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
+GROQ_URL        = "https://api.groq.com/openai/v1/chat/completions"
 TARGET_LANGUAGE = "Tiếng Việt"
-MODEL_NAME      = "gemma3:4b"
+MODEL_NAME      = "llama-3.1-8b-instant"
 BATCH_WORD_LIMIT = 2000
 INPUT_JSON      = "final_transcriptions.json"
 OUTPUT_TXT      = "formatted_transcript.txt"
@@ -88,29 +89,34 @@ def translate_batch_with_llm(
     import requests
     prompt = build_translation_prompt(raw_text, target_language)
 
+    if not GROQ_API_KEY:
+        raise RuntimeError(
+            "❌ Chưa set biến môi trường GROQ_API_KEY!\n"
+            "   Hãy chạy: os.environ['GROQ_API_KEY'] = 'gsk_...' trước khi chạy bước dịch."
+        )
+
     for i in range(1, max_retries + 1):
         try:
-            # Dùng Ollama /api/generate thay vì chat.completions
-            # → hoạt động với cả model "completion-only" (gemma3:4b)
             resp = requests.post(
-                "http://localhost:11434/api/generate",
-                json={
-                    "model":  model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.1,
-                        "num_predict": 4096,
-                    }
+                GROQ_URL,
+                headers={
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Content-Type": "application/json",
                 },
-                timeout=120
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.1,
+                    "max_tokens": 4096,
+                },
+                timeout=120,
             )
             resp.raise_for_status()
-            return resp.json().get("response", "").strip()
+            return resp.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
             if i < max_retries:
                 wait_time = 2 ** i
-                print(f"Rate limit, waiting {wait_time} seconds before retrying...")
+                print(f"Lỗi: {e}. Đang chờ {wait_time} giây để thử lại...")
                 time.sleep(wait_time)
             else:
                 raise RuntimeError(f"LLM call failed: {e}")
@@ -152,15 +158,15 @@ def translate_and_format_transcript(
     output_json: str = OUTPUT_JSON,
     target_language: str = TARGET_LANGUAGE,
     model: str = MODEL_NAME,
-    api_key: str = OPENAI_API_KEY,
+    api_key: str = GROQ_API_KEY,
 ) -> tuple[str, list[dict]]:
     
     segments = load_transcript(input_json)
     batches = split_into_batches(segments,word_limit=BATCH_WORD_LIMIT)
 
     client = OpenAI(
-        base_url="http://localhost:11434/v1",
-        api_key=api_key,
+        base_url="https://api.groq.com/openai/v1",
+        api_key=api_key if api_key else "gsk-placeholder",
     )
 
     txt_parts, json_parts = [], []
