@@ -57,7 +57,7 @@ def chunk_to_text(chunk: List[Dict]) -> str:
             lines.append(f"[{ts}] {speaker}: {text}")
     return "\n".join(lines)
 
-def call_llm(prompt, timeout=600):
+def call_llm(prompt, timeout=600, max_retries=5):
     api_key = os.getenv("GROQ_API_KEY", "").strip() or GROQ_API_KEY
     if not api_key:
         raise RuntimeError(
@@ -65,22 +65,48 @@ def call_llm(prompt, timeout=600):
             "   Nguyên nhân: Giá trị key lấy từ UserSecretsClient đang rỗng hoặc bạn chưa bật secret trong Notebook."
         )
 
-    resp = requests.post(
-        GROQ_URL,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": MODEL_NAME,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.3,
-            "max_tokens": 1024,
-        },
-        timeout=timeout,
-    )
-    resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"].strip()
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = requests.post(
+                GROQ_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": MODEL_NAME,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 1024,
+                },
+                timeout=timeout,
+            )
+
+            # Xử lý riêng lỗi 429 Too Many Requests
+            if resp.status_code == 429:
+                wait_time = 5 * attempt
+                retry_after = resp.headers.get("retry-after")
+                if retry_after and retry_after.isdigit():
+                    wait_time = max(int(retry_after), wait_time)
+                print(f"⚠️ Chạm giới hạn lượt gọi (429 Rate Limit). Tạm dừng {wait_time}s để hồi phục quota (lần {attempt}/{max_retries})...")
+                time.sleep(wait_time)
+                continue
+
+            if resp.status_code != 200:
+                print(f"⚠️ Groq API phản hồi mã {resp.status_code}: {resp.text}")
+
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"].strip()
+
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries:
+                wait_time = 3 * attempt
+                print(f"Lỗi: {e}. Đang chờ {wait_time}s rồi thử lại...")
+                time.sleep(wait_time)
+            else:
+                raise RuntimeError(f"❌ LLM call failed sau {max_retries} lần thử: {e}")
+
+    raise RuntimeError("❌ Không nhận được phản hồi từ LLM sau nhiều lần thử lại.")
 
 def map_summarize_chunk(chunk_text: str,
                         chunk_idx: int,
@@ -142,7 +168,7 @@ Their statements:
 {all_text[:3000]}  
 Write 3-5 bullet points summarizing their main contributions in {TARGET_LANGUAGE}:"""
         summaries[sp] = call_llm(prompt, timeout=600)
-        time.sleep(0.5)
+        time.sleep(2)
     return summaries
 
     
@@ -163,7 +189,7 @@ def summarize_meeting(
         text = chunk_to_text(chunk)
         summary = map_summarize_chunk(text, idx, len(chunks))
         chunks_summaries.append(summary)
-        time.sleep(1)
+        time.sleep(2)
 
     overall_summary = reduce_summaries(chunks_summaries)
     speaker_summary = summarize_per_speaker(segments)
