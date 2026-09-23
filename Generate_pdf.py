@@ -39,11 +39,24 @@ URL_BOLD    = "https://github.com/google/fonts/raw/main/ofl/bevietnampro/BeVietn
 
 def get_font_paths() -> tuple[str, str]:
     """Tự động kiểm tra hoặc tải font BeVietnamPro chuẩn tiếng Việt"""
-    # 1. Kiểm tra nếu font đã có sẵn trong thư mục dự án
-    if os.path.exists(FONT_REGULAR) and os.path.exists(FONT_BOLD):
-        return FONT_REGULAR, FONT_BOLD
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 1. Danh sách các vị trí có thể chứa font trong dự án
+    font_candidates = [
+        (os.path.join(current_dir, "fronts", "BeVietnamPro-Regular.ttf"),
+         os.path.join(current_dir, "fronts", "BeVietnamPro-Bold.ttf")),
+        (os.path.join(current_dir, "fonts", "BeVietnamPro-Regular.ttf"),
+         os.path.join(current_dir, "fonts", "BeVietnamPro-Bold.ttf")),
+        (os.path.join(current_dir, "BeVietnamPro-Regular.ttf"),
+         os.path.join(current_dir, "BeVietnamPro-Bold.ttf")),
+        (os.path.join(current_dir, "..", "fronts", "BeVietnamPro-Regular.ttf"),
+         os.path.join(current_dir, "..", "fronts", "BeVietnamPro-Bold.ttf")),
+    ]
+    for reg, bld in font_candidates:
+        if os.path.exists(reg) and os.path.exists(bld):
+            return os.path.abspath(reg), os.path.abspath(bld)
 
-    # 2. Kiểm tra các font hệ thống Linux / Kaggle
+    # 2. Kiểm tra các font hệ thống Linux / Kaggle có hỗ trợ UTF-8 tiếng Việt
     system_candidates = [
         ("/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf"),
         ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
@@ -52,16 +65,36 @@ def get_font_paths() -> tuple[str, str]:
         if os.path.exists(reg) and os.path.exists(bld):
             return reg, bld
 
-    # 3. Tải font BeVietnamPro trực tiếp từ Google Fonts CDN
+    # 3. Tải font BeVietnamPro về thư mục /tmp/fonts
+    target_dir = os.path.join(current_dir, "fonts")
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+    except Exception:
+        target_dir = "/tmp/fonts"
+        os.makedirs(target_dir, exist_ok=True)
+
+    target_reg = os.path.join(target_dir, "BeVietnamPro-Regular.ttf")
+    target_bld = os.path.join(target_dir, "BeVietnamPro-Bold.ttf")
+
+    if os.path.exists(target_reg) and os.path.exists(target_bld):
+        return target_reg, target_bld
+
     print(" Đang tải font tiếng Việt BeVietnamPro từ Google Fonts...")
     try:
-        urllib.request.urlretrieve(URL_REGULAR, FONT_REGULAR)
-        urllib.request.urlretrieve(URL_BOLD, FONT_BOLD)
+        req_reg = urllib.request.Request(URL_REGULAR, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req_reg) as resp, open(target_reg, "wb") as f:
+            f.write(resp.read())
+
+        req_bld = urllib.request.Request(URL_BOLD, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req_bld) as resp, open(target_bld, "wb") as f:
+            f.write(resp.read())
+
         print(" Tải font thành công!")
-        return FONT_REGULAR, FONT_BOLD
+        return target_reg, target_bld
     except Exception as e:
         print(f" Không thể tải font qua mạng: {e}")
         return None, None
+
 
 
 class MeetingPDF(FPDF):
@@ -133,7 +166,7 @@ def export_summary_to_pdf(
 
     # Chuẩn bị font chữ tiếng Việt
     reg_font, bold_font = get_font_paths()
-    font_name = "VietFont"
+    font_name = "VietFont" if reg_font else "Helvetica"
 
     pdf = MeetingPDF(font_name=font_name, orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=18)
@@ -142,8 +175,6 @@ def export_summary_to_pdf(
     if reg_font:
         pdf.add_font(font_name, "", reg_font)
         pdf.add_font(font_name, "B", bold_font if bold_font else reg_font)
-    else:
-        pdf.set_fallback_fonts(["Helvetica"])
 
     pdf.add_page()
 
@@ -265,7 +296,7 @@ def export_transcript_to_pdf(
 
     # Chuẩn bị font chữ tiếng Việt
     reg_font, bold_font = get_font_paths()
-    font_name = "VietFont"
+    font_name = "VietFont" if reg_font else "Helvetica"
 
     pdf = MeetingPDF(font_name=font_name, orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=18)
@@ -273,8 +304,6 @@ def export_transcript_to_pdf(
     if reg_font:
         pdf.add_font(font_name, "", reg_font)
         pdf.add_font(font_name, "B", bold_font if bold_font else reg_font)
-    else:
-        pdf.set_fallback_fonts(["Helvetica"])
 
     pdf.add_page()
 
