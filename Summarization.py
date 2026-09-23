@@ -8,7 +8,7 @@ from Speaker_Diarization import speaker_diarization
 
 GROQ_API_KEY     = os.getenv("GROQ_API_KEY", "")
 GROQ_URL         = "https://api.groq.com/openai/v1/chat/completions"
-MODEL_NAME       = "llama-3.1-8b-instant"
+MODEL_NAME       = "openai/gpt-oss-120b"
 TARGET_LANGUAGE  = "Tiếng Việt"
 CHUNK_WORD_LIMIT = 500          # số từ mỗi chunk MAP
 INPUT_JSON       = "formatted_transcript.json"

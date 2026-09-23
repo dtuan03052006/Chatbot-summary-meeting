@@ -5,7 +5,7 @@ from openai import OpenAI
 GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
 GROQ_URL        = "https://api.groq.com/openai/v1/chat/completions"
 TARGET_LANGUAGE = "Tiếng Việt"
-MODEL_NAME      = "llama-3.1-8b-instant"
+MODEL_NAME      = "openai/gpt-oss-120b"
 BATCH_WORD_LIMIT = 2000
 INPUT_JSON      = "final_transcriptions.json"
 OUTPUT_TXT      = "formatted_transcript.txt"
