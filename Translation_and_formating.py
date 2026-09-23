@@ -1,4 +1,4 @@
-import json, os, time
+import json, os, time, re
 from openai import OpenAI
 
 
@@ -19,10 +19,16 @@ def load_transcript(input_file: str) -> list[dict]:
 
 def format_time(seconds):
     """Chuyển đổi giây sang định dạng HH:MM:SS"""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    return f"{hours:02}:{minutes:02}:{secs:02}"
+    if isinstance(seconds, str):
+        return seconds
+    try:
+        s = float(seconds)
+        hours = int(s // 3600)
+        minutes = int((s % 3600) // 60)
+        secs = int(s % 60)
+        return f"{hours:02}:{minutes:02}:{secs:02}"
+    except Exception:
+        return str(seconds)
 
 def segments_to_text(segments):
     """Chuyển đổi danh sách segments thành văn bản định dạng"""
@@ -126,32 +132,60 @@ def translate_batch_with_llm(
     return ""
 
 def parse_translated_text_to_json(translated_text, original_segments):
-    """Chuyển đổi văn bản đã dịch thành danh sách dict với định dạng chuẩn"""
-    results=[]
-    lines=[]
-    idx=0
+    """
+    Chuyển đổi văn bản đã dịch thành danh sách dict.
+    Tự động xử lý mọi định dạng từ LLM: có timestamp, không timestamp, code block, đánh số...
+    Luôn đảm bảo kết quả có đầy đủ dữ liệu từ original_segments.
+    """
+    if not original_segments:
+        return []
+
+    results = []
+    cleaned_lines = []
+    
+    # 1. Lọc bỏ các dòng markdown thừa, code blocks, lời chào
+    skip_prefixes = ("```", "###", "here is", "dưới đây", "translation", "bản dịch", "output:")
     for ln in translated_text.split("\n"):
-        ln=ln.strip()
-        if ln:
-            lines.append(ln)
-    for line in lines:
-        if "]" in line and ":" in line:
-            try:
-                after=line.split("]",1)[1].strip()
-                speaker, text=after.split(":",1)
-                text=text.strip()
-                if(idx < len(original_segments)):
-                    src=original_segments[idx]
-                    results.append({
-                        "speaker" : src["speaker"],
-                        "start" : format_time(src["start"]),
-                        "end" : format_time(src["end"]),
-                        "text_original" : src["text"],
-                        "text_translated" : text
-                    })
-                    idx+=1
-            except(ValueError, IndexError):
-                continue
+        ln_clean = ln.strip()
+        if not ln_clean:
+            continue
+        if any(ln_clean.lower().startswith(p) for p in skip_prefixes):
+            continue
+        cleaned_lines.append(ln_clean)
+
+    # 2. Bóc tách nội dung câu nói từ từng dòng
+    parsed_texts = []
+    for line in cleaned_lines:
+        text_content = ""
+        if "]" in line:
+            after_bracket = line.split("]", 1)[1].strip()
+            if ":" in after_bracket:
+                text_content = after_bracket.split(":", 1)[1].strip()
+            else:
+                text_content = after_bracket
+        elif ":" in line:
+            text_content = line.split(":", 1)[1].strip()
+        else:
+            text_content = re.sub(r"^\d+[\.\)]\s*", "", line).strip()
+
+        if text_content:
+            parsed_texts.append(text_content)
+
+    # 3. Ghép nối với original_segments
+    for idx, src in enumerate(original_segments):
+        if idx < len(parsed_texts):
+            trans_text = parsed_texts[idx]
+        else:
+            trans_text = src.get("text", "")
+
+        results.append({
+            "speaker": src.get("speaker", "UNKNOWN"),
+            "start": format_time(src.get("start", 0)),
+            "end": format_time(src.get("end", 0)),
+            "text_original": src.get("text", ""),
+            "text_translated": trans_text
+        })
+
     return results
     
 
@@ -165,7 +199,13 @@ def translate_and_format_transcript(
 ) -> tuple[str, list[dict]]:
     
     segments = load_transcript(input_json)
-    batches = split_into_batches(segments,word_limit=BATCH_WORD_LIMIT)
+    print(f" Đọc được {len(segments)} segments từ '{input_json}'")
+    if not segments:
+        print(f"CẢNH BÁO: File '{input_json}' không có đoạn thoại nào! Hãy kiểm tra bước 3 (transcribe_audio).")
+        return "", []
+
+    batches = split_into_batches(segments, word_limit=BATCH_WORD_LIMIT)
+    print(f" Đã chia thành {len(batches)} batch để dịch...")
 
     client = OpenAI(
         base_url="https://api.groq.com/openai/v1",
@@ -174,11 +214,12 @@ def translate_and_format_transcript(
 
     txt_parts, json_parts = [], []
     for i, batch in enumerate(batches, 1):
-        
+        print(f"  → Đang dịch batch {i}/{len(batches)} ({len(batch)} câu)...")
         raw = segments_to_text(batch)
         translated = translate_batch_with_llm(client, raw, target_language, model)
         txt_parts.append(translated)
-        json_parts.extend(parse_translated_text_to_json(translated, batch))
+        parsed = parse_translated_text_to_json(translated, batch)
+        json_parts.extend(parsed)
         if i < len(batches):
             time.sleep(1)
 
@@ -189,4 +230,6 @@ def translate_and_format_transcript(
    
     with open(output_json, "w", encoding="utf-8") as f:
         json.dump(json_parts, f, ensure_ascii=False, indent=4)
+        
+    print(f" Đã lưu thành công {len(json_parts)} segments vào '{output_json}'")
     return full_text, json_parts
