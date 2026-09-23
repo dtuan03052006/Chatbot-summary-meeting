@@ -89,10 +89,13 @@ def translate_batch_with_llm(
     import requests
     prompt = build_translation_prompt(raw_text, target_language)
 
-    if not GROQ_API_KEY:
+    # Lấy key trực tiếp tại thời điểm gọi hàm
+    api_key = os.getenv("GROQ_API_KEY", "").strip() or GROQ_API_KEY
+
+    if not api_key:
         raise RuntimeError(
-            "❌ Chưa set biến môi trường GROQ_API_KEY!\n"
-            "   Hãy chạy: os.environ['GROQ_API_KEY'] = 'gsk_...' trước khi chạy bước dịch."
+            " Chưa tìm thấy GROQ_API_KEY!\n"
+            "   Nguyên nhân: Giá trị key lấy từ UserSecretsClient đang rỗng hoặc bạn chưa bật secret trong Notebook."
         )
 
     for i in range(1, max_retries + 1):
@@ -100,7 +103,7 @@ def translate_batch_with_llm(
             resp = requests.post(
                 GROQ_URL,
                 headers={
-                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                 },
                 json={

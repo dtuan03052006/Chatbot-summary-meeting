@@ -58,10 +58,17 @@ def chunk_to_text(chunk: List[Dict]) -> str:
     return "\n".join(lines)
 
 def call_llm(prompt, timeout=600):
+    api_key = os.getenv("GROQ_API_KEY", "").strip() or GROQ_API_KEY
+    if not api_key:
+        raise RuntimeError(
+            "❌ Chưa tìm thấy GROQ_API_KEY!\n"
+            "   Nguyên nhân: Giá trị key lấy từ UserSecretsClient đang rỗng hoặc bạn chưa bật secret trong Notebook."
+        )
+
     resp = requests.post(
         GROQ_URL,
         headers={
-            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         },
         json={
