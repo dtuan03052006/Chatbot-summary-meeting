@@ -61,7 +61,7 @@ def call_llm(prompt, timeout=600, max_retries=5):
     api_key = os.getenv("GROQ_API_KEY", "").strip() or GROQ_API_KEY
     if not api_key:
         raise RuntimeError(
-            "❌ Chưa tìm thấy GROQ_API_KEY!\n"
+            " Chưa tìm thấy GROQ_API_KEY!\n"
             "   Nguyên nhân: Giá trị key lấy từ UserSecretsClient đang rỗng hoặc bạn chưa bật secret trong Notebook."
         )
 
@@ -88,12 +88,12 @@ def call_llm(prompt, timeout=600, max_retries=5):
                 retry_after = resp.headers.get("retry-after")
                 if retry_after and retry_after.isdigit():
                     wait_time = max(int(retry_after), wait_time)
-                print(f"⚠️ Chạm giới hạn lượt gọi (429 Rate Limit). Tạm dừng {wait_time}s để hồi phục quota (lần {attempt}/{max_retries})...")
+                print(f" Chạm giới hạn lượt gọi (429 Rate Limit). Tạm dừng {wait_time}s để hồi phục quota (lần {attempt}/{max_retries})...")
                 time.sleep(wait_time)
                 continue
 
             if resp.status_code != 200:
-                print(f"⚠️ Groq API phản hồi mã {resp.status_code}: {resp.text}")
+                print(f" Groq API phản hồi mã {resp.status_code}: {resp.text}")
 
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]["content"].strip()
@@ -104,9 +104,9 @@ def call_llm(prompt, timeout=600, max_retries=5):
                 print(f"Lỗi: {e}. Đang chờ {wait_time}s rồi thử lại...")
                 time.sleep(wait_time)
             else:
-                raise RuntimeError(f"❌ LLM call failed sau {max_retries} lần thử: {e}")
+                raise RuntimeError(f" LLM call failed sau {max_retries} lần thử: {e}")
 
-    raise RuntimeError("❌ Không nhận được phản hồi từ LLM sau nhiều lần thử lại.")
+    raise RuntimeError(" Không nhận được phản hồi từ LLM sau nhiều lần thử lại.")
 
 def map_summarize_chunk(chunk_text: str,
                         chunk_idx: int,

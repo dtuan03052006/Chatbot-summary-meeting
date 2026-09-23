@@ -336,36 +336,47 @@ def export_transcript_to_pdf(
 
         # Khi đổi người nói → in tên speaker nổi bật
         if speaker != prev_speaker:
-            pdf.ln(3)
+            if pdf.get_y() > 255:
+                pdf.add_page()
+            else:
+                pdf.ln(4)
             pdf.set_font(font_name, "B", 11)
-            pdf.set_text_color(40, 116, 166)
+            pdf.set_text_color(24, 76, 120)  # Xanh dương đậm đồng bộ
             pdf.cell(0, 6, f"── {speaker} ──")
             pdf.ln(7)
             prev_speaker = speaker
 
-        # Dòng thời gian + nội dung đã dịch
-        if text_vn:
-            cleaned = clean_line(text_vn)
-            if cleaned:
-                pdf.set_font(font_name, "B", 9)
-                pdf.set_text_color(100, 100, 100)
-                pdf.set_x(15)
-                pdf.cell(35, 5, f"[{start} - {end}]")
+        # Kiểm tra nếu gần cuối trang thì sang trang mới
+        if pdf.get_y() > 268:
+            pdf.add_page()
 
-                pdf.set_font(font_name, "", 10)
-                pdf.set_text_color(30, 30, 30)
-                pdf.multi_cell(0, 5.5, cleaned)
-                pdf.ln(1)
+        curr_y = pdf.get_y()
+        timestamp_str = f"[{start} - {end}]" if start and end else ""
 
-        # Nội dung gốc (in nhỏ, xám nhạt)
-        if text_orig:
-            orig_cleaned = clean_line(text_orig)
-            if orig_cleaned:
-                pdf.set_font(font_name, "", 8)
-                pdf.set_text_color(150, 150, 150)
-                pdf.set_x(50)
-                pdf.multi_cell(0, 4.5, f"(Gốc: {orig_cleaned})")
-                pdf.ln(1)
+        # 1. Cột trái: Mốc thời gian (X=15, rộng 46mm, không bao giờ bị đè)
+        if timestamp_str:
+            pdf.set_xy(15, curr_y)
+            pdf.set_font(font_name, "B", 8.5)
+            pdf.set_text_color(110, 110, 110)
+            pdf.cell(46, 5, timestamp_str)
+
+        # 2. Cột phải: Bản dịch tiếng Việt (X=63, rộng 132mm)
+        cleaned_vn = clean_line(text_vn) if text_vn else ""
+        if cleaned_vn:
+            pdf.set_xy(63, curr_y)
+            pdf.set_font(font_name, "", 9.5)
+            pdf.set_text_color(30, 30, 30)
+            pdf.multi_cell(132, 5.2, cleaned_vn)
+
+        # 3. Cột phải: Bản gốc tiếng Anh (X=63, rộng 132mm)
+        cleaned_orig = clean_line(text_orig) if text_orig else ""
+        if cleaned_orig:
+            pdf.set_x(63)
+            pdf.set_font(font_name, "", 8)
+            pdf.set_text_color(140, 140, 140)
+            pdf.multi_cell(132, 4.2, f"(Gốc: {cleaned_orig})")
+
+        pdf.ln(2.5)
 
     # Xuất file
     pdf.output(output_pdf)
