@@ -1,0 +1,23 @@
+# Core AI / Audio Processing
+torch
+torchaudio
+openai-whisper
+pyannote.audio
+pydub
+
+# LLM & API Clients
+requests
+openai
+
+# PDF Generation
+fpdf2
+
+# Vector DB & RAG
+qdrant-client
+sentence-transformers
+
+# API Server
+fastapi
+uvicorn
+python-multipart
+
