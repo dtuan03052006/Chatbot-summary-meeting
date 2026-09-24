@@ -4,6 +4,7 @@ from Transform_speed_to_text import transcribe_audio
 from Translation_and_formating import translate_and_format_transcript
 from Summarization import summarize_meeting
 from Generate_pdf import export_summary_to_pdf, export_transcript_to_pdf
+from Rag_indexing import index_meeting_to_qdrant
 import os
 import json
 from pydub import AudioSegment
@@ -60,4 +61,16 @@ pdf_transcript = export_transcript_to_pdf(
     meeting_title="BIÊN BẢN CUỘC HỌP CHIA TỪNG NGƯỜI NÓI",
 )
 print(f"Xuất PDF thành công: {pdf_summary,pdf_transcript}")
+
+# ----- Bước 7: Tự động nạp 2 file JSON vào Qdrant Vector DB (RAG) -----
+num_chunks = index_meeting_to_qdrant(
+    summary_path="meeting_summary.json",
+    transcript_path="formatted_transcript.json",
+    db_path="./qdrant_db"
+)
+print(f"Bước 7 ✅ Đã tự động nạp {num_chunks} chunks vào Qdrant RAG DB!")
+
+print("\n" + "=" * 50)
+print(" 🎉 TOÀN BỘ PIPELINE & RAG ĐÃ HOÀN THÀNH!")
+print("=" * 50)
 

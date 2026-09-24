@@ -24,3 +24,6 @@ __pycache__/
 # !fronts/*.ttf
 meeting_summary.txt
 meeting_summary.md
+
+# Qdrant Vector DB local storage
+qdrant_db/
