@@ -1,11 +1,14 @@
 import json, os, time, re
 from openai import OpenAI
+from dotenv import load_dotenv
+load_dotenv()
+
 
 
 GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
 GROQ_URL        = "https://api.groq.com/openai/v1/chat/completions"
 TARGET_LANGUAGE = "Tiếng Việt"
-MODEL_NAME      = "openai/gpt-oss-120b"
+MODEL_NAME      = "qwen/qwen3.8-27b"
 BATCH_WORD_LIMIT = 2000
 INPUT_JSON      = "final_transcriptions.json"
 OUTPUT_TXT      = "formatted_transcript.txt"
@@ -116,15 +119,34 @@ def translate_batch_with_llm(
                     "model": model,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.1,
-                    "max_tokens": 4096,
+                    "max_tokens": 800,
                 },
                 timeout=120,
             )
+            if resp.status_code == 429:
+                wait_time = 6.0 * i
+                retry_header = resp.headers.get("retry-after")
+                if retry_header:
+                    try:
+                        wait_time = max(float(retry_header), wait_time)
+                    except ValueError:
+                        pass
+                try:
+                    err_msg = resp.json().get("error", {}).get("message", "")
+                    match = re.search(r"try again in ([\d\.]+)s", err_msg)
+                    if match:
+                        wait_time = max(float(match.group(1)) + 1.0, wait_time)
+                except Exception:
+                    pass
+                print(f" Chạm giới hạn lượt gọi Groq (429 Rate Limit). Tạm dừng {wait_time:.1f}s để hồi phục quota (lần {i}/{max_retries})...")
+                time.sleep(wait_time)
+                continue
+
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]["content"].strip()
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             if i < max_retries:
-                wait_time = 2 ** i
+                wait_time = 3 * i
                 print(f"Lỗi: {e}. Đang chờ {wait_time} giây để thử lại...")
                 time.sleep(wait_time)
             else:

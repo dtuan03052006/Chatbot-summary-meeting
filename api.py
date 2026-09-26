@@ -13,6 +13,8 @@ import os
 import shutil
 import json
 from typing import Optional
+
+
 from fastapi import FastAPI, UploadFile, File, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -27,10 +29,10 @@ from Summarization import summarize_meeting
 from Generate_pdf import export_summary_to_pdf, export_transcript_to_pdf
 from Rag_indexing import index_meeting_to_qdrant
 from Rag_query import ask_meeting
+from dotenv import load_dotenv
+load_dotenv()
 
-# -------------------------------------------------
-# Khởi tạo App & Thư mục
-# -------------------------------------------------
+
 app = FastAPI(
     title="Meeting AI Assistant API",
     description="Hệ thống 5 chức năng: Upload âm thanh, Thu âm không mic, Thu âm có mic, Xuất PDF và Chatbot hỏi đáp",
@@ -65,7 +67,7 @@ def execute_meeting_pipeline(audio_wav_path: str) -> dict:
 
     # 2. Bóc giọng nói thành chữ (Whisper)
     print(" [2/5] Đang chuyển giọng nói thành văn bản...")
-    transcriptions = transcribe_audio(audio_wav_path, diar_result, model_size="medium")
+    transcriptions = transcribe_audio(audio_wav_path, diar_result, model_size="small")
     with open("final_transcriptions.json", "w", encoding="utf-8") as f:
         json.dump(transcriptions, f, ensure_ascii=False, indent=4)
 
@@ -241,4 +243,3 @@ def api_chat(req: ChatQuery):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
-

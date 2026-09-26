@@ -43,7 +43,7 @@ def format_segment(seg):
     trans = seg.get("text_translated","").strip();
     orgin = seg.get("text_original","").strip();
     return f"[{start} {speaker}: {trans}, Gốc{orgin}]"
-def prepare_documents(summary_path: str, transcript_path: str) -> list[dict]:
+def prepare_documents(summary_path: str, transcript_path: str) -> list[Document]:
     docs = []
 
     # 1. Bóc tách file meeting_summary.json
@@ -116,18 +116,23 @@ def index_meeting_to_qdrant(
 
     # Chuyển text sang vector
     print(f" Đang mã hóa {len(docs)} chunks sang vector...")
-    texts = [d["text"] for d in docs]
+    texts = [doc.page_content for doc in docs]
     vectors = encoder.encode(texts, show_progress_bar=False)
 
+    points=[]
     # Đóng gói points
-    points = [
-        PointStruct(
-            id=str(uuid.uuid4()),
-            vector=v.tolist(),
-            payload=d
+    for doc, vector in zip(docs, vectors):
+
+        payload = dict(doc.metadata)
+        payload["text"] = doc.page_content
+
+        points.append(
+            PointStruct(
+                id=str(uuid.uuid4()),
+                vector=vector.tolist(),
+                payload=payload
+            )
         )
-        for d, v in zip(docs, vectors)
-    ]
 
     # Làm mới collection và lưu points
     existing_collections = [c.name for c in client.get_collections().collections]

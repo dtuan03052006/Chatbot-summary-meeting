@@ -27,3 +27,4 @@ meeting_summary.md
 
 # Qdrant Vector DB local storage
 qdrant_db/
+.env

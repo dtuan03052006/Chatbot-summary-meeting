@@ -6,9 +6,12 @@ from torch import chunk
 
 from Speaker_Diarization import speaker_diarization
 
+from dotenv import load_dotenv
+load_dotenv()
+
 GROQ_API_KEY     = os.getenv("GROQ_API_KEY", "")
 GROQ_URL         = "https://api.groq.com/openai/v1/chat/completions"
-MODEL_NAME       = "openai/gpt-oss-120b"
+MODEL_NAME       = "qwen/qwen3.8-27b"
 TARGET_LANGUAGE  = "Tiếng Việt"
 CHUNK_WORD_LIMIT = 500          # số từ mỗi chunk MAP
 INPUT_JSON       = "formatted_transcript.json"
@@ -77,18 +80,28 @@ def call_llm(prompt, timeout=600, max_retries=5):
                     "model": MODEL_NAME,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.3,
-                    "max_tokens": 1024,
+                    "max_tokens": 800,
                 },
                 timeout=timeout,
             )
 
             # Xử lý riêng lỗi 429 Too Many Requests
             if resp.status_code == 429:
-                wait_time = 5 * attempt
+                wait_time = 6.0 * attempt
                 retry_after = resp.headers.get("retry-after")
-                if retry_after and retry_after.isdigit():
-                    wait_time = max(int(retry_after), wait_time)
-                print(f" Chạm giới hạn lượt gọi (429 Rate Limit). Tạm dừng {wait_time}s để hồi phục quota (lần {attempt}/{max_retries})...")
+                if retry_after:
+                    try:
+                        wait_time = max(float(retry_after), wait_time)
+                    except ValueError:
+                        pass
+                try:
+                    err_msg = resp.json().get("error", {}).get("message", "")
+                    match = re.search(r"try again in ([\d\.]+)s", err_msg)
+                    if match:
+                        wait_time = max(float(match.group(1)) + 1.0, wait_time)
+                except Exception:
+                    pass
+                print(f" Chạm giới hạn lượt gọi (429 Rate Limit). Tạm dừng {wait_time:.1f}s để hồi phục quota (lần {attempt}/{max_retries})...")
                 time.sleep(wait_time)
                 continue
 
@@ -194,7 +207,7 @@ def summarize_meeting(
     overall_summary = reduce_summaries(chunks_summaries)
     speaker_summary = summarize_per_speaker(segments)
 
-    result = {
+    result =    {
         "overall_summary":  overall_summary,
         "per_speaker":       speaker_summary,
         "chunk_summaries":   chunks_summaries,

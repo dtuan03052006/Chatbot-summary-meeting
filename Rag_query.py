@@ -9,10 +9,13 @@ import requests
 from qdrant_client import QdrantClient
 from Rag_indexing import get_embedding_model, COLLECTION_NAME, DEFAULT_DB_PATH
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # Cấu hình Groq
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions"
-MODEL_NAME   = "openai/gpt-oss-120b"
+MODEL_NAME   = "qwen/qwen3.8-27b"
 
 
 def search_relevant_context(
@@ -97,7 +100,7 @@ def ask_meeting(
                 "model": MODEL_NAME,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.2,
-                "max_tokens": 1024,
+                "max_tokens": 800,
             },
             timeout=120,
         )

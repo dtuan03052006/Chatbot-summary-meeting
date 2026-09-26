@@ -1,23 +1,38 @@
-# Core AI / Audio Processing
+# ==========================================================
+# Chatbot Summary Meeting - Requirements
+# ==========================================================
+
+# 1. Core Deep Learning & Audio Processing
 torch
 torchaudio
-openai-whisper
 pyannote.audio
+faster-whisper
+sounddevice
+wavio
 pydub
+numpy
 
-# LLM & API Clients
+# 2. NVIDIA CUDA Hardware Acceleration (for faster-whisper)
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
+
+# 3. LLM API & Environment Management
 requests
 openai
+python-dotenv
 
-# PDF Generation
-fpdf2
-
-# Vector DB & RAG
+# 4. Vector Database & RAG Pipeline
 qdrant-client
 sentence-transformers
+langchain-core
+langchain-text-splitters
 
-# API Server
+# 5. Vietnamese PDF Report Generation
+fpdf2
+
+# 6. FastAPI Server & Background Tasks
 fastapi
 uvicorn
 python-multipart
+pydantic
 
